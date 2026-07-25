@@ -1,4 +1,4 @@
-import moongoose, { Schema } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
@@ -56,14 +56,14 @@ userSchema.methods.generateAccessToken = function () {
         {
             _id: this._id,
             fullName: this.fullName,
-            email: this.email
+            email: this.email,
         },
         process.env.ACCESS_TOKEN_SECRET,
         {
-            expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+            expiresIn: process.env.ACCESS_TOKEN_EXPIRY,
         }
-    )
-}
+    );
+};
 userSchema.methods.generateRefreshToken = function () {
     return jwt.sign(
         {
@@ -71,38 +71,10 @@ userSchema.methods.generateRefreshToken = function () {
         },
         process.env.REFRESH_TOKEN_SECRET,
         {
-            expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+            expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
         }
-    )
-}
+    );
+};
 
-export const User = moongoose.model("User", userSchema);
+export const User = mongoose.model("User", userSchema);
 
-
-
-
-// User (independent entity)
-//   - _id
-//   - name
-//   - email
-//   - password (hashed)
-//   - googleId (OAuth ke liye)
-// Workspace
-//   - _id
-//   - name
-//   - owner: ObjectId → ref User
-//   - members: [ { userId: ObjectId → ref User, role: String } ]
-// Project (belongs to Workspace)
-//   - _id
-//   - name
-//   - workspaceId: ObjectId → ref Workspace
-// Task (belongs to Project)
-//   - _id
-//   - title
-//   - description
-//   - status: enum
-//   - assignee: ObjectId → ref User
-//   - projectId: ObjectId → ref Project
-//   - dueDate
-//   - priority
-//   - attachments: [String] (URLs)
