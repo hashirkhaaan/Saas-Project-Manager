@@ -17,11 +17,20 @@ const userSchema = new Schema(
             unique: true,
             index: true,
         },
+        username: {
+            type: String,
+            required: true,
+            unique: true,
+            lowercase: true,
+            trim: true,
+            index: true,
+        },
         password: {
             type: String,
             required: function () {
                 return !this.googleId;
             },
+            select: false,
         },
         avatar: {
             type: String,
@@ -34,6 +43,7 @@ const userSchema = new Schema(
         },
         refreshToken: {
             type: String,
+            select: false,
         },
     },
     {
@@ -77,4 +87,3 @@ userSchema.methods.generateRefreshToken = function () {
 };
 
 export const User = mongoose.model("User", userSchema);
-
