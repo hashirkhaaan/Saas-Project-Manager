@@ -25,4 +25,25 @@ const uploadOnCloudinary = async (localFilePath) => {
     }
 };
 
-export { uploadOnCloudinary };
+const deleteZombieFilesOnCloudinary = async (publicId, resource_type) => {
+    try {
+        if (!publicId) return null;
+
+        const response = await cloudinary.uploader.destroy(publicId, {
+            resource_type,
+        });
+
+        if (response.result !== "ok") {
+            console.warn(
+                `Cloudinary Delete Warning: ${publicId} - ${response.result}`
+            );
+        }
+
+        return response;
+    } catch (error) {
+        console.error("Cloudinary Delete Failed:", error?.message);
+        return null;
+    }
+};
+
+export { uploadOnCloudinary, deleteZombieFilesOnCloudinary };

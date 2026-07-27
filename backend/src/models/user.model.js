@@ -33,8 +33,11 @@ const userSchema = new Schema(
             select: false,
         },
         avatar: {
-            type: String,
-            default: "",
+            type: {
+                url: String,
+                public_id: String,
+            },
+            default: {},
         },
         googleId: {
             type: String,
