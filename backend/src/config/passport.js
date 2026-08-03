@@ -28,7 +28,10 @@ passport.use(
                                 .split("@")[0]
                                 .replace(/[^a-zA-Z0-9]/g, ""),
                             email: profile.emails[0].value,
-                            avatar: profile.photos[0].value,
+                            avatar: {
+                                url: profile.photos[0].value,
+                                public_id: "",
+                            },
                         });
                     }
                 }

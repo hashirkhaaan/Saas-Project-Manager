@@ -279,6 +279,22 @@ const updateUserAvatarImage = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, user, "Avatar updated successfully"));
 });
+
+const googleAuthCallback = asyncHandler(async (req, res) => {
+    const user = req.user;
+
+    if (!user) {
+        return res.redirect(`${process.env.CORS_ORIGIN}/login?error=google_auth_failed`);
+    }
+
+    const { accessToken, refreshToken } =
+        await generateAccessAndRefreshToken(user);
+
+    return res
+        .cookie("refreshToken", refreshToken, options)
+        .cookie("accessToken", accessToken, options)
+        .redirect(`${process.env.CORS_ORIGIN}/dashboard`);
+});
 export {
     registerUser,
     loginUser,
@@ -287,4 +303,5 @@ export {
     getCurrentUser,
     changeCurrentPassowrd,
     updateUserAvatarImage,
+    googleAuthCallback
 };
