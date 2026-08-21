@@ -43,5 +43,9 @@ workspaceSchema.methods.memberEntry = function (userId) {
         (member) => member.userId.toString() === userId.toString()
     );
 };
-
+workspaceSchema.methods.isMember = function (userId) {
+    return this.members.some(
+        (member) => member.userId.toString() === userId.toString()
+    );
+};
 export const Workspace = mongoose.model("Workspace", workspaceSchema);
