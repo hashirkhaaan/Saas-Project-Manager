@@ -1,10 +1,15 @@
 import { Workspace } from "../models/workspace.model.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
+import { isValidObjectId } from "mongoose";
 
 const attachWorkspaceRole = asyncHandler(async (req, res, next) => {
     try {
         const { workSpaceId } = req.params;
+
+        if (!isValidObjectId(workSpaceId)) {
+            throw new ApiError(400, "Invalid workspace id");
+        }
 
         if (!workSpaceId) {
             throw new ApiError(400, "Invalid request");
