@@ -9,6 +9,7 @@ import {
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import passport from "passport";
+
 const router = Router();
 
 router.route("/register").post(upload.single("avatar"), registerUser);
