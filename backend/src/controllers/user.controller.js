@@ -1,13 +1,14 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { validateEmail } from "../utils/ValidateEmail.js";
+import { validateEmail } from "../utils/validateEmail.js";
 import { User } from "../models/user.model.js";
 import {
     uploadOnCloudinary,
     deleteZombieFilesOnCloudinary,
 } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
+import { sendEmail } from "../utils/sendEmail.js";
 
 const options = {
     httpOnly: true,
@@ -52,14 +53,16 @@ const registerUser = asyncHandler(async (req, res) => {
     if (existedUser) {
         throw new ApiError(409, "Email or username already registered");
     }
-    const avatarLocalPath = req.file?.path || "";
+    const avatarLocalPath = req.file?.path;
 
-    const cloudinaryResponse = await uploadOnCloudinary(avatarLocalPath);
+    const cloudinaryResponse = avatarLocalPath
+        ? await uploadOnCloudinary(avatarLocalPath)
+        : null;
 
-    const avatar = {
+    const avatar = cloudinaryResponse ? {
         url: cloudinaryResponse.url,
         public_id: cloudinaryResponse.public_id,
-    };
+    } : {};
 
     const user = await User.create({
         fullName: fullName.trim(),
@@ -195,7 +198,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
         );
 });
 
-const changeCurrentPassowrd = asyncHandler(async (req, res) => {
+const changeCurrentPassword = asyncHandler(async (req, res) => {
     const { oldPassword, newPassword, confirmNewPassword } = req.body;
 
     if (!req.user) {
@@ -230,6 +233,7 @@ const changeCurrentPassowrd = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Old and new password can not be same");
     }
     user.password = newPassword;
+    user.refreshToken = undefined;
     await user.save();
 
     return res
@@ -280,6 +284,104 @@ const updateUserAvatarImage = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, user, "Avatar updated successfully"));
 });
 
+const updateAccountDetails = asyncHandler(async (req, res) => {
+    const { fullName } = req.body;
+
+    if (!fullName || fullName.trim() === "") {
+        throw new ApiError(400, "Full name is required");
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set: { fullName: fullName.trim() },
+        },
+        { new: true }
+    );
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                updatedUser,
+                "Account details updated successfully"
+            )
+        );
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (user) {
+        const otp = await user.generateResetOTP();
+
+        const subject = "Reset password OTP for Saas Project Manager";
+
+        const text =
+            "If you didn't requested password reset, please ignore this and don't share this code with anyone.";
+
+        const html = `Below is your password reset code:\n<h1>${otp}</h1>`;
+
+        await sendEmail({ to: email, subject, text, html });
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {},
+                "If email is registered, forgot password email sent successfully"
+            )
+        );
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { email, otp, newPassword, confirmNewPassword } = req.body;
+
+    if (
+        [email, otp, newPassword, confirmNewPassword].some(
+            (field) => !field || field.trim() === ""
+        )
+    ) {
+        throw new ApiError(400, "All fields must be present");
+    }
+
+    if (!validateEmail(email)) {
+        throw new ApiError(400, "Invalid email format");
+    }
+
+    if (newPassword !== confirmNewPassword) {
+        throw new ApiError(400, "Passwords do not match");
+    }
+
+    const user = await User.findOne({ email }).select(
+        "+resetPasswordOTP +resetPasswordExpiry"
+    );
+
+    if (!user) {
+        throw new ApiError(400, "Invalid or expired OTP");
+    }
+
+    const isValidOTP = await user.verifyResetOTP(otp);
+
+    if (!isValidOTP) {
+        throw new ApiError(400, "Invalid or expired OTP");
+    }
+
+    user.clearResetOTP();
+    user.password = newPassword;
+    user.refreshToken = undefined;
+    await user.save();
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, {}, "Password reset successfully"));
+});
+
 const googleAuthCallback = asyncHandler(async (req, res) => {
     const user = req.user;
 
@@ -305,7 +407,9 @@ export {
     logoutUser,
     refreshAccessToken,
     getCurrentUser,
-    changeCurrentPassowrd,
+    changeCurrentPassword,
     updateUserAvatarImage,
+    forgotPassword,
+    resetPassword,
     googleAuthCallback,
 };
