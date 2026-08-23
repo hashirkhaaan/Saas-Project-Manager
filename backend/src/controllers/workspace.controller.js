@@ -8,6 +8,7 @@ import { Project } from "../models/project.model.js";
 import { Invite } from "../models/invite.models.js";
 import crypto from "crypto";
 import { sendEmail } from "../utils/sendEmail.js";
+import { isValidObjectId } from "mongoose";
 
 const createWorkspace = asyncHandler(async (req, res) => {
     const { name } = req.body;
@@ -101,7 +102,6 @@ const updateWorkspaceName = asyncHandler(async (req, res) => {
 });
 
 const deleteWorkspace = asyncHandler(async (req, res) => {
-    
     const workspaceId = req.workspace._id;
 
     const projects = await Project.find({ workspaceId });
@@ -240,6 +240,7 @@ const rejectInvite = asyncHandler(async (req, res) => {
         .json(new ApiResponse(200, {}, "Invite rejected successfully"));
 });
 
+
 export {
     createWorkspace,
     getUserWorkspaces,
@@ -248,5 +249,5 @@ export {
     deleteWorkspace,
     generateInvite,
     acceptInvite,
-    rejectInvite
+    rejectInvite,
 };
