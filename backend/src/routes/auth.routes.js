@@ -1,20 +1,31 @@
 import { Router } from "express";
-import { upload } from "../middlewares/multer.middlware.js";
 import {
+    uploadAvatar,
+    validateFileSignatures,
+} from "../middlewares/multer.middlware.js";
+import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { passwordRecoveryLimiter } from "../middlewares/passwordRecoveryLimiter.middleware.js";
+import passport from "passport";
+import {
+    registerUser,
     loginUser,
     logoutUser,
     refreshAccessToken,
-    registerUser,
+    forgotPassword,
+    resetPassword,
     googleAuthCallback,
 } from "../controllers/user.controller.js";
-import { verifyJWT } from "../middlewares/auth.middleware.js";
-import passport from "passport";
 
 const router = Router();
 
-router.route("/register").post(upload.single("avatar"), registerUser);
-
+router
+    .route("/register")
+    .post(uploadAvatar.single("avatar"), validateFileSignatures, registerUser);
 router.route("/login").post(loginUser);
+router.route("/logout").post(verifyJWT, logoutUser);
+router.route("/refresh-token").post(refreshAccessToken);
+router.route("/forgot-password").post(passwordRecoveryLimiter, forgotPassword);
+router.route("/reset-password").post(passwordRecoveryLimiter, resetPassword);
 
 router.route("/google").get(
     passport.authenticate("google", {
@@ -22,7 +33,6 @@ router.route("/google").get(
         session: false,
     })
 );
-
 router.route("/google/callback").get(
     passport.authenticate("google", {
         session: false,
@@ -30,9 +40,5 @@ router.route("/google/callback").get(
     }),
     googleAuthCallback
 );
-
-// secure routes
-router.route("/logout").post(verifyJWT, logoutUser);
-router.route("/refresh-token").post(refreshAccessToken);
 
 export default router;
