@@ -39,4 +39,9 @@ const inviteSchema = new Schema(
     }
 );
 
+inviteSchema.methods.verifyInvite = function() {
+    if (Date.now() > this.expiresAt) return false;
+    return true;
+}
+
 export const Invite = mongoose.model("Invite", inviteSchema);
