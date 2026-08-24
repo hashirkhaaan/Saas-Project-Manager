@@ -31,10 +31,14 @@ app.use(cookieParser());
 import userRouter from "./routes/user.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import workspaceRouter from "./routes/workspace.routes.js";
+import projectRouter from "./routes/project.routes.js";
+import taskRouter from "./routes/task.routes.js";
 
 // routes decleration
 app.use("/api/v1/users", userRouter);
 app.use("/api/v1/auth", authRouter);
-app.use("/api/v1/workspace");
+app.use("/api/v1/workspaces", workspaceRouter);
+app.use("/api/v1/workspaces", projectRouter);
+app.use("/api/v1/workspaces", taskRouter);
 
 export { app };
