@@ -4,7 +4,7 @@ import {
     validateFileSignatures,
 } from "../middlewares/multer.middlware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { passwordRecoveryLimiter } from "../middlewares/passwordRecoveryLimiter.middleware.js";
+import { authLimiter, passwordRecoveryLimiter } from "../middlewares/rateLimiter.middleware.js";
 import passport from "passport";
 import {
     registerUser,
@@ -21,9 +21,9 @@ const router = Router();
 router
     .route("/register")
     .post(uploadAvatar.single("avatar"), validateFileSignatures, registerUser);
-router.route("/login").post(loginUser);
+router.route("/login").post(authLimiter, loginUser);
 router.route("/logout").post(verifyJWT, logoutUser);
-router.route("/refresh-token").post(refreshAccessToken);
+router.route("/refresh-token").post(authLimiter, refreshAccessToken);
 router.route("/forgot-password").post(passwordRecoveryLimiter, forgotPassword);
 router.route("/reset-password").post(passwordRecoveryLimiter, resetPassword);
 

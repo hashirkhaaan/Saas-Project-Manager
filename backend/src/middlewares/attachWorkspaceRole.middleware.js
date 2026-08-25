@@ -4,7 +4,6 @@ import { ApiError } from "../utils/ApiError.js";
 import { isValidObjectId } from "mongoose";
 
 const attachWorkspaceRole = asyncHandler(async (req, res, next) => {
-    try {
         const { workSpaceId } = req.params;
 
         if (!isValidObjectId(workSpaceId)) {
@@ -33,9 +32,6 @@ const attachWorkspaceRole = asyncHandler(async (req, res, next) => {
         req.role = memberEntry.role;
 
         next();
-    } catch (error) {
-        throw new ApiError(401, error?.message || "Invalid request");
-    }
 });
 
 export { attachWorkspaceRole };

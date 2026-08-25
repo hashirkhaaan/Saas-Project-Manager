@@ -59,10 +59,12 @@ const registerUser = asyncHandler(async (req, res) => {
         ? await uploadOnCloudinary(avatarLocalPath)
         : null;
 
-    const avatar = cloudinaryResponse ? {
-        url: cloudinaryResponse.url,
-        public_id: cloudinaryResponse.public_id,
-    } : {};
+    const avatar = cloudinaryResponse
+        ? {
+              url: cloudinaryResponse.secure_url,
+              public_id: cloudinaryResponse.public_id,
+          }
+        : {};
 
     const user = await User.create({
         fullName: fullName.trim(),
@@ -271,6 +273,8 @@ const updateUserAvatarImage = asyncHandler(async (req, res) => {
         },
         {
             new: true,
+            runValidators: true,
+            context: "query",
         }
     );
 
@@ -296,7 +300,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
         {
             $set: { fullName: fullName.trim() },
         },
-        { new: true }
+        { new: true, runValidators: true, context: "query" }
     );
 
     return res
@@ -356,6 +360,10 @@ const resetPassword = asyncHandler(async (req, res) => {
 
     if (newPassword !== confirmNewPassword) {
         throw new ApiError(400, "Passwords do not match");
+    }
+
+    if (newPassword.length < 8) {
+        throw new ApiError(400, "Password must be 8 characters long");
     }
 
     const user = await User.findOne({ email }).select(
