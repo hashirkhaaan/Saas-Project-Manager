@@ -1,6 +1,6 @@
 import { ApiError } from "../utils/ApiError.js";
 
-const errorHandler = (error, req, res, next) => {
+const errorHandler = (error, _, res, _) => {
     const statusCode = error instanceof ApiError ? error.statusCode : 500;
     const message =
         error instanceof ApiError ? error.message : "Internal server error";
