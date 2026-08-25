@@ -121,8 +121,9 @@ userSchema.methods.verifyResetOTP = async function (otp) {
         !this.resetPasswordOTP ||
         !this.resetPasswordExpiry ||
         this.resetPasswordAttempts >= 5
-    )
+    ) {
         return false;
+    }
 
     if (Date.now() > this.resetPasswordExpiry.getTime()) {
         this.clearResetOTP();
@@ -132,17 +133,43 @@ userSchema.methods.verifyResetOTP = async function (otp) {
 
     const isValid = await bcrypt.compare(otp, this.resetPasswordOTP);
 
-    if (!isValid) {
-        this.resetPasswordAttempts += 1;
-
-        if (this.resetPasswordAttempts >= 5) {
-            this.clearResetOTP();
-        }
-
-        await this.save({ validateBeforeSave: false });
+    if (isValid) {
+        return true;
     }
 
-    return isValid;
+    const result = await this.constructor.updateOne(
+        {
+            _id: this._id,
+            resetPasswordOTP: this.resetPasswordOTP,
+            resetPasswordExpiry: { $gt: new Date() },
+            resetPasswordAttempts: { $lt: 5 },
+        },
+        {
+            $inc: { resetPasswordAttempts: 1 },
+        }
+    );
+
+    if (result.matchedCount === 0) {
+        return false;
+    }
+
+    if (this.resetPasswordAttempts + 1 >= 5) {
+        await this.constructor.updateOne(
+            {
+                _id: this._id,
+                resetPasswordOTP: this.resetPasswordOTP,
+            },
+            {
+                $unset: {
+                    resetPasswordOTP: 1,
+                    resetPasswordExpiry: 1,
+                },
+                $set: { resetPasswordAttempts: 0 },
+            }
+        );
+    }
+
+    return false;
 };
 
 userSchema.methods.clearResetOTP = function () {
