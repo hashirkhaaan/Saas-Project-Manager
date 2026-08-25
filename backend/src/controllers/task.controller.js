@@ -57,7 +57,7 @@ const createTask = asyncHandler(async (req, res) => {
         const attachments = req.files;
 
         const urls = await Promise.all(
-            attachments.map((attachment) => uploadOnCloudinary(attachment.path))
+            attachments.map((attachment) => uploadOnCloudinary(attachment.path, attachment.detectedMimeType))
         );
 
         if (urls.some((url) => !url?.secure_url)) {
