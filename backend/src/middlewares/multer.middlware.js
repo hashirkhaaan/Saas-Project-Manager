@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs/promises";
 import multer from "multer";
 import { fileTypeFromFile } from "file-type";
+import { ApiError } from "../utils/ApiError.js";
 
 const storage = multer.diskStorage({
     destination: "./public/temp",
@@ -46,36 +47,41 @@ const createUpload = (allowedTypes, files = 1) =>
 const uploadAvatar = createUpload(imageTypes, 1);
 const uploadAttachments = createUpload(attachmentTypes, 5);
 
-const validateFileSignatures = async (req, res, next) => {
-    const files = req.file
-        ? [req.file]
-        : Array.isArray(req.files)
-            ? req.files
-            : [];
+const validateFileSignatures = (allowedDetectedMimeTypes) =>
+    async (req, res, next) => {
+        const files = req.file
+            ? [req.file]
+            : Array.isArray(req.files)
+                ? req.files
+                : [];
 
-    try {
-        for (const file of files) {
-            const detectedType = await fileTypeFromFile(file.path);
+        try {
+            for (const file of files) {
+                const detectedType = await fileTypeFromFile(file.path);
 
-            if (!detectedType || !attachmentTypes.has(detectedType.mime)) {
-                throw new Error(`Invalid file type: ${file.originalname}`);
+                if (
+                    !detectedType ||
+                    !allowedDetectedMimeTypes.has(detectedType.mime)
+                ) {
+                    throw new ApiError(400, "Invalid file type");
+                }
+
+                file.detectedMimeType = detectedType.mime;
             }
 
-            file.detectedMimeType = detectedType.mime;
+            next();
+        } catch (error) {
+            await Promise.all(
+                files.map((file) => fs.unlink(file.path).catch(() => {}))
+            );
+            next(error);
         }
-
-        next();
-    } catch (error) {
-        await Promise.all(
-            files.map((file) => fs.unlink(file.path).catch(() => {}))
-        );
-
-        next(error);
-    }
-};
+    };
 
 export {
     uploadAvatar,
     uploadAttachments,
     validateFileSignatures,
+    imageTypes,
+    attachmentTypes,
 };
