@@ -56,7 +56,7 @@ const registerUser = asyncHandler(async (req, res) => {
     const avatarLocalPath = req.file?.path;
 
     const cloudinaryResponse = avatarLocalPath
-        ? await uploadOnCloudinary(avatarLocalPath)
+        ? await uploadOnCloudinary(avatarLocalPath, req.file.detectedMimeType)
         : null;
 
     const avatar = cloudinaryResponse
@@ -249,7 +249,7 @@ const updateUserAvatarImage = asyncHandler(async (req, res) => {
     if (!avatarLocalPath) {
         throw new ApiError(400, "Avatar file is missing");
     }
-    const cloudinaryResponse = await uploadOnCloudinary(avatarLocalPath);
+    const cloudinaryResponse = await uploadOnCloudinary(avatarLocalPath, req.file.detectedMimeType);
 
     if (!cloudinaryResponse?.url) {
         throw new ApiError(500, "Error while uploading the file to cloudinary");
@@ -395,7 +395,7 @@ const googleAuthCallback = asyncHandler(async (req, res) => {
 
     if (!user) {
         return res.redirect(
-            `${process.env.CORS_ORIGIN}/login?error=google_auth_failed`
+            `${process.env.FRONTEND_URL}/login?error=google_auth_failed`
         );
     }
 
@@ -406,7 +406,7 @@ const googleAuthCallback = asyncHandler(async (req, res) => {
         .status(200)
         .cookie("refreshToken", refreshToken, options)
         .cookie("accessToken", accessToken, options)
-        .redirect(`${process.env.CORS_ORIGIN}/dashboard`);
+        .redirect(`${process.env.FRONTEND_URL}/dashboard`);
 });
 
 export {
@@ -417,6 +417,7 @@ export {
     getCurrentUser,
     changeCurrentPassword,
     updateUserAvatarImage,
+    updateAccountDetails,
     forgotPassword,
     resetPassword,
     googleAuthCallback,
