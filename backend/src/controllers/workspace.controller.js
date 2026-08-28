@@ -10,6 +10,9 @@ import crypto from "crypto";
 import { sendEmail } from "../utils/sendEmail.js";
 import { isValidObjectId } from "mongoose";
 import { validateEmail } from "../utils/validateEmail.js";
+import mongoose from "mongoose";
+
+
 
 const createWorkspace = asyncHandler(async (req, res) => {
     const { name } = req.body;
@@ -203,62 +206,73 @@ const acceptInvite = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Invalid request");
     }
 
-    const invite = await Invite.findOne({ token });
+    const session = await mongoose.startSession();
 
-    if (!invite || !invite.verifyInvite()) {
-        throw new ApiError(404, "Invalid or expired invite");
-    }
+    try {
+        await session.withTransaction(async () => {
+            const invite = await Invite.findOne({
+                token,
+                expiresAt: { $gt: new Date() },
+            }).session(session);
 
-    if (req.user.email.toLowerCase() !== invite.email) {
-        throw new ApiError(403, "Unauthorized request");
-    }
+            if (!invite) {
+                throw new ApiError(404, "Invalid or expired invite");
+            }
 
-    const workspace = await Workspace.findOneAndUpdate(
-        {
-            _id: invite.workspaceId,
-            members: {
-                $not: {
-                    $elemMatch: {
-                        userId: req.user._id,
+            if (req.user.email.toLowerCase() !== invite.email) {
+                throw new ApiError(403, "Unauthorized request");
+            }
+
+            const workspace = await Workspace.findOneAndUpdate(
+                {
+                    _id: invite.workspaceId,
+                    members: {
+                        $not: {
+                            $elemMatch: { userId: req.user._id },
+                        },
                     },
                 },
-            },
-        },
-        {
-            $push: {
-                members: {
-                    userId: req.user._id,
-                    role: invite.role,
+                {
+                    $push: {
+                        members: {
+                            userId: req.user._id,
+                            role: invite.role,
+                        },
+                    },
                 },
-            },
-        },
-        {
-            new: true,
-            runValidators: true,
-            context: "query",
-        }
-    );
+                {
+                    new: true,
+                    runValidators: true,
+                    context: "query",
+                    session,
+                }
+            );
 
-    if (!workspace) {
-        throw new ApiError(
-            400,
-            "User is already a member or workspace no longer exists"
-        );
-    }
+            if (!workspace) {
+                throw new ApiError(
+                    409,
+                    "Already a member or workspace missing"
+                );
+            }
 
-    const consumedInvite = await Invite.findOneAndDelete({
-        _id: invite._id,
-        token,
-    });
+            const consumedInvite = await Invite.findOneAndDelete(
+                { _id: invite._id, token },
+                { session }
+            );
 
-    if (!consumedInvite) {
-        throw new ApiError(409, "Invite has already been used");
+            if (!consumedInvite) {
+                throw new ApiError(409, "Invite has already been used");
+            }
+        });
+    } finally {
+        await session.endSession();
     }
 
     return res
         .status(200)
         .json(new ApiResponse(200, {}, "Invite accepted successfully"));
 });
+
 
 const rejectInvite = asyncHandler(async (req, res) => {
     const { token } = req.query;
