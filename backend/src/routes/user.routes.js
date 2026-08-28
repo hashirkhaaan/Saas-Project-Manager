@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
     uploadAvatar,
     validateFileSignatures,
+    imageTypes,
 } from "../middlewares/multer.middlware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import {
@@ -16,13 +17,15 @@ const router = Router();
 // secure routes
 
 router.route("/current-user").get(verifyJWT, getCurrentUser);
+
 router.route("/change-password").post(verifyJWT, changeCurrentPassword);
+
 router
     .route("/update-avatar")
     .patch(
         verifyJWT,
         uploadAvatar.single("avatar"),
-        validateFileSignatures,
+        validateFileSignatures(imageTypes),
         updateUserAvatarImage
     );
 
