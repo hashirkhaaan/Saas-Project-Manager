@@ -7,6 +7,7 @@ import { verifyTaskInProject } from "../middlewares/verifyTaskInProject.middlewa
 import {
     uploadAttachments,
     validateFileSignatures,
+    attachmentTypes
 } from "../middlewares/multer.middlware.js";
 
 import {
@@ -29,7 +30,7 @@ router
         verifyProjectInWorkspace,
         checkRole(["owner"]),
         uploadAttachments.array("attachments", 5),
-        validateFileSignatures,
+        validateFileSignatures(attachmentTypes),
         createTask
     );
 
