@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
     uploadAvatar,
     validateFileSignatures,
+    imageTypes
 } from "../middlewares/multer.middlware.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { authLimiter, passwordRecoveryLimiter } from "../middlewares/rateLimiter.middleware.js";
@@ -20,7 +21,7 @@ const router = Router();
 
 router
     .route("/register")
-    .post(uploadAvatar.single("avatar"), validateFileSignatures, registerUser);
+    .post(uploadAvatar.single("avatar"), validateFileSignatures(imageTypes), registerUser);
 router.route("/login").post(authLimiter, loginUser);
 router.route("/logout").post(verifyJWT, logoutUser);
 router.route("/refresh-token").post(authLimiter, refreshAccessToken);
@@ -36,7 +37,7 @@ router.route("/google").get(
 router.route("/google/callback").get(
     passport.authenticate("google", {
         session: false,
-        failureRedirect: `${process.env.CORS_ORIGIN}/login?error=google_auth_failed`,
+        failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_auth_failed`,
     }),
     googleAuthCallback
 );
