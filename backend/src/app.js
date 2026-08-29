@@ -8,9 +8,11 @@ import { errorHandler } from "./middlewares/error.middleware.js";
 const app = express();
 
 // Configurations for the app
+
+const corsOrigin = process.env.CORS_ORIGIN?.trim();
 app.use(
     cors({
-        origin: process.env.CORS_ORIGIN,
+        origin: corsOrigin,
         credentials: true,
     })
 );
