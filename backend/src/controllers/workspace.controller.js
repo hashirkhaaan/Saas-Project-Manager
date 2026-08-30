@@ -11,8 +11,7 @@ import { sendEmail } from "../utils/sendEmail.js";
 import { isValidObjectId } from "mongoose";
 import { validateEmail } from "../utils/validateEmail.js";
 import mongoose from "mongoose";
-
-
+import { executeTransaction } from "../utils/mongoTransaction.js";
 
 const createWorkspace = asyncHandler(async (req, res) => {
     const { name } = req.body;
@@ -110,24 +109,48 @@ const updateWorkspaceName = asyncHandler(async (req, res) => {
 const deleteWorkspace = asyncHandler(async (req, res) => {
     const workspaceId = req.workspace._id;
 
-    const projects = await Project.find({ workspaceId });
-    const projectIds = projects.map((project) => project._id);
+    try {
+        const result = await executeTransaction(async (session) => {
+            const projects = await Project.find(
+                { workspaceId },
+                { _id: 1 },
+                { session }
+            );
+            const projectIds = projects.map((project) => project._id);
 
-    await Task.deleteMany({
-        projectId: {
-            $in: projectIds,
-        },
-    });
+            if (projectIds.length > 0) {
+                await Task.deleteMany(
+                    { projectId: { $in: projectIds } },
+                    { session }
+                );
+            }
 
-    await Project.deleteMany({ workspaceId });
+            await Project.deleteMany({ workspaceId }, { session });
 
-    await Invite.deleteMany({ workspaceId });
+            await Invite.deleteMany({ workspaceId }, { session });
 
-    await Workspace.findByIdAndDelete(workspaceId);
+            const deletedWorkspace = await Workspace.findByIdAndDelete(
+                workspaceId,
+                { session }
+            );
 
-    return res
-        .status(200)
-        .json(new ApiResponse(200, {}, "Workspace deleted successfully"));
+            return {
+                success: true,
+                deletedWorkspace,
+                projectsDeleted: projectIds.length,
+                tasksDeleted: projectIds.length > 0,
+                invitesDeleted: true,
+            };
+        });
+
+        return res
+            .status(200)
+            .json(
+                new ApiResponse(200, result, "Workspace deleted successfully")
+            );
+    } catch (error) {
+        throw new ApiError(500, "Failed to delete workspace: " + error.message);
+    }
 });
 
 const generateInvite = asyncHandler(async (req, res) => {
@@ -153,6 +176,7 @@ const generateInvite = asyncHandler(async (req, res) => {
     if (existedInvite) {
         throw new ApiError(400, "Invite to this user already exists");
     }
+
     const existedUser = await User.findOne({ email });
 
     if (!existedUser) {
@@ -173,23 +197,25 @@ const generateInvite = asyncHandler(async (req, res) => {
     }
 
     const token = crypto.randomBytes(32).toString("hex");
-
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    const createdInvite = await Invite.create({
-        workspaceId,
-        email,
-        token,
-        role,
-        expiresAt,
-        invitedBy: req.user._id,
+    const createdInvite = await executeTransaction(async (session) => {
+        return await Invite.createInviteWithTransaction(
+            {
+                workspaceId,
+                email,
+                token,
+                role,
+                expiresAt,
+                invitedBy: req.user._id,
+            },
+            session
+        );
     });
+
     const inviteLink = `${process.env.FRONTEND_URL}/invite/accept?token=${token}`;
-
     const subject = `${req.user.fullName} is inviting you to their workspace ${workspace.name}`;
-
     const text = "If you want to join the workspace, please click below: ";
-
     const html = `<a href="${inviteLink}">Accept Invite</a>`;
 
     await sendEmail({ to: email, subject, text, html });
@@ -206,73 +232,68 @@ const acceptInvite = asyncHandler(async (req, res) => {
         throw new ApiError(401, "Invalid request");
     }
 
-    const session = await mongoose.startSession();
+    const result = await executeTransaction(async (session) => {
+        const invite = await Invite.findOne({
+            token,
+            expiresAt: { $gt: new Date() },
+        }).session(session);
 
-    try {
-        await session.withTransaction(async () => {
-            const invite = await Invite.findOne({
-                token,
-                expiresAt: { $gt: new Date() },
-            }).session(session);
+        if (!invite) {
+            throw new ApiError(404, "Invalid or expired invite");
+        }
 
-            if (!invite) {
-                throw new ApiError(404, "Invalid or expired invite");
-            }
+        if (req.user.email.toLowerCase() !== invite.email) {
+            throw new ApiError(403, "Unauthorized request");
+        }
 
-            if (req.user.email.toLowerCase() !== invite.email) {
-                throw new ApiError(403, "Unauthorized request");
-            }
-
-            const workspace = await Workspace.findOneAndUpdate(
-                {
-                    _id: invite.workspaceId,
+        const workspace = await Workspace.findOneAndUpdate(
+            {
+                _id: invite.workspaceId,
+                members: {
+                    $not: {
+                        $elemMatch: { userId: req.user._id },
+                    },
+                },
+            },
+            {
+                $push: {
                     members: {
-                        $not: {
-                            $elemMatch: { userId: req.user._id },
-                        },
+                        userId: req.user._id,
+                        role: invite.role,
                     },
                 },
-                {
-                    $push: {
-                        members: {
-                            userId: req.user._id,
-                            role: invite.role,
-                        },
-                    },
-                },
-                {
-                    new: true,
-                    runValidators: true,
-                    context: "query",
-                    session,
-                }
-            );
-
-            if (!workspace) {
-                throw new ApiError(
-                    409,
-                    "Already a member or workspace missing"
-                );
+            },
+            {
+                new: true,
+                runValidators: true,
+                context: "query",
+                session,
             }
+        );
 
-            const consumedInvite = await Invite.findOneAndDelete(
-                { _id: invite._id, token },
-                { session }
+        if (!workspace) {
+            throw new ApiError(
+                409,
+                "Already a member or workspace missing"
             );
+        }
 
-            if (!consumedInvite) {
-                throw new ApiError(409, "Invite has already been used");
-            }
-        });
-    } finally {
-        await session.endSession();
-    }
+        const consumedInvite = await Invite.findOneAndDelete(
+            { _id: invite._id, token },
+            { session }
+        );
+
+        if (!consumedInvite) {
+            throw new ApiError(409, "Invite has already been used");
+        }
+
+        return { success: true };
+    });
 
     return res
         .status(200)
-        .json(new ApiResponse(200, {}, "Invite accepted successfully"));
+        .json(new ApiResponse(200, result, "Invite accepted successfully"));
 });
-
 
 const rejectInvite = asyncHandler(async (req, res) => {
     const { token } = req.query;
